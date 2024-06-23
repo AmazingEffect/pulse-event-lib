@@ -3,8 +3,6 @@ package com.pulse.event_library.listener;
 import com.pulse.event_library.event.OutboxEvent;
 import com.pulse.event_library.service.KafkaProducerService;
 import com.pulse.event_library.service.OutboxService;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -44,7 +42,7 @@ public class OutboxEventListener {
         try {
             Long eventId = event.getId();
             String topic = outboxService.getKafkaTopic(event);
-            kafkaProducerService.send(topic, String.valueOf(eventId));
+            kafkaProducerService.sendWithRetry(topic, String.valueOf(eventId));
             outboxService.markOutboxEventProcessed(event);
         } catch (Exception e) {
             outboxService.markOutboxEventFailed(event);
