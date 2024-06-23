@@ -43,7 +43,7 @@ public class OutboxEventListener {
     public void sendToKafka(OutboxEvent event) {
         try {
             Long eventId = event.getId();
-            String topic = event.getEventType();
+            String topic = outboxService.getKafkaTopic(event);
             kafkaProducerService.send(topic, String.valueOf(eventId));
             outboxService.markOutboxEventProcessed(event);
         } catch (Exception e) {
