@@ -2,7 +2,8 @@ package com.pulse.event_library.config;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
@@ -18,11 +19,14 @@ import java.util.Map;
  * Kafka 프로듀서의 설정을 담당합니다.
  */
 @Configuration
-@EnableKafka
+@ConfigurationProperties(prefix = "spring.kafka.producer")
 public class KafkaProducerConfig {
 
-    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
+
+    public void setBootstrapServers(String bootstrapServers) {
+        this.bootstrapServers = bootstrapServers;
+    }
 
     /**
      * Kafka 프로듀서 팩토리를 설정합니다.
