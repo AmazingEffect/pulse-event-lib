@@ -19,11 +19,12 @@ public class OutboxStatusChangeListener {
 
     /**
      * outbox로 끝나는 토픽만 처리하는 listen 메서드
+     * topicPattern을 사용하여 outbox로 끝나는 토픽만 처리한다.
      *
      * @param message
      * @param ack
      */
-    @KafkaListener(topics = ".*outbox$")
+    @KafkaListener(topicPattern = ".*outbox$")
     public void listen(
             String message,
             Acknowledgment ack
