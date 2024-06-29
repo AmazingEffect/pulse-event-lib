@@ -20,7 +20,7 @@ repositories {
 	maven { url 'https://repo.spring.io/release' }
 }
 
-// SpringBootPlugin을 비활성화 하고, BOM_CORDINATES를 사용합니다.
+// Spring Boot BOM(Bill of Materials)을 사용하여 의존성 버전을 관리합니다.
 dependencyManagement {
 	imports {
 		mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
@@ -28,49 +28,52 @@ dependencyManagement {
 }
 
 dependencies {
-	// Spring boot
-	implementation 'org.springframework.boot:spring-boot-starter-web:3.3.1'
-
-	// Spring kafka
-	implementation 'org.springframework.kafka:spring-kafka:3.2.1'
-	implementation 'org.springframework.retry:spring-retry:2.0.6'
-	implementation 'org.springframework:spring-aspects:6.1.10'
-	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
+	// Spring
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	// kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+	implementation 'org.springframework.retry:spring-retry'
+	implementation 'org.springframework:spring-aspects'
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
 	// @ConfigurationProperties 사용시 필요
 	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
-
-	// Test
-	testImplementation 'org.springframework.boot:spring-boot-starter-test:3.3.1'
 }
 
-tasks.named('test') {
-	useJUnitPlatform()
-}
-
-// bootJar 태스크를 비활성화하고 일반 jar 태스크를 활성화해야 합니다. 이를 통해 라이브러리로 사용할 수 있도록 합니다.
+// Spring Boot에서 기본적으로 생성하는 fat JAR(실행 가능한 JAR)을 비활성화합니다.
 bootJar {
 	enabled = false
 }
 
+// 표준 JAR 파일을 생성하도록 설정합니다.
 jar {
 	enabled = true
 }
 
-// sourcesJar 태스크를 추가하여 소스코드를 jar로 만들어 로컬 Maven 리포지토리에 배포합니다.
+// 소스 코드를 포함하는 JAR 파일을 생성하는 태스크입니다.
 task sourcesJar(type: Jar) {
-	archiveClassifier.set('sources')
-	from sourceSets.main.allSource
+	archiveClassifier.set('sources') // 생성된 JAR 파일의 분류자(Classifier)를 sources로 설정합니다.
+	from sourceSets.main.allSource   // 프로젝트의 모든 소스 코드를 포함합니다.
 }
 
-// publishToMavenLocal 태스크를 추가하여 로컬 Maven 리포지토리에 배포합니다.
+// Maven 배포 설정입니다.
 publishing {
+	// 배포할 아티팩트를 정의합니다.
 	publications {
+		// Maven 배포 설정을 정의합니다.
 		mavenJava(MavenPublication) {
 			from components.java
 			artifact sourcesJar
+			// Resolved dependencies 설정 추가 (모든 의존성 버전을 해석하여 퍼블리싱할 때 포함하도록 설정합니다.)
+			versionMapping {
+				allVariants {
+					fromResolutionResult()
+				}
+			}
 		}
 	}
+	// 아티팩트를 배포할 리포지토리를 정의합니다.
 	repositories {
+		// 로컬 Maven 리포지토리에 배포하도록 설정합니다.
 		maven {
 			name = "localRepo"
 			url = uri("${System.getProperty('user.home')}/.m2/repository")
