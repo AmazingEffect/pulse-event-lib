@@ -37,6 +37,10 @@ dependencies {
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 	// @ConfigurationProperties 사용시 필요
 	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
+	// msa 로깅 Jaeger 설정
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+	implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
 }
 
 // Spring Boot에서 기본적으로 생성하는 fat JAR(실행 가능한 JAR)을 비활성화합니다.
