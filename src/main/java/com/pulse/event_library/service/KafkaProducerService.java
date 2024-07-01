@@ -1,5 +1,12 @@
 package com.pulse.event_library.service;
 
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapSetter;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -10,16 +17,27 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * KafkaProducerService는 Kafka로 메시지를 전송하는 서비스입니다.
+ * KafkaProducerService에서 트레이스 컨텍스트를 메시지에 포함시켜 전송해야 합니다.
+ * 이를 위해 OpenTelemetry의 Tracer를 사용합니다.
+ */
 @Service
 public class KafkaProducerService {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final Tracer tracer = GlobalOpenTelemetry.getTracer("kafka-producer");
 
     public KafkaProducerService(KafkaTemplate<String, String> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
+
+    // Kafka 메시지에 트레이스 컨텍스트를 주입하기 위한 TextMapSetter
+    private static final TextMapSetter<ProducerRecord<String, String>> setter =
+            (carrier, key, value) -> carrier.headers().add(key, value.getBytes(StandardCharsets.UTF_8));
 
     /**
      * Kafka로 메시지를 전송합니다.
@@ -28,13 +46,21 @@ public class KafkaProducerService {
      * @param payloadJson 전송할 메시지
      * @return 전송 결과를 나타내는 CompletableFuture
      */
-    public CompletableFuture<SendResult<String, String>> send(String topic, String payloadJson) {
-        Message<String> message = MessageBuilder
-                .withPayload(payloadJson)
-                .setHeader(KafkaHeaders.TOPIC, topic)
-                .build();
+    public CompletableFuture<SendResult<String, String>> send(String topic, String payloadJson, Context context) {
+        // 1. Span을 생성합니다.
+        Span span = tracer.spanBuilder("kafka-send").setParent(context).startSpan();
 
-        return kafkaTemplate.send(message);
+        // 2. Span을 현재 컨텍스트에 설정합니다.
+        try (Scope scope = span.makeCurrent()) {
+            ProducerRecord<String, String> record = new ProducerRecord<>(topic, payloadJson);
+
+            // todo: KafkaProducerService에서 메시지 전송 시 traceparent 헤더가 제대로 주입되었는지 확인합니다.
+            GlobalOpenTelemetry.getPropagators().getTextMapPropagator().inject(context, record, setter);
+            return kafkaTemplate.send(record);
+        } finally {
+            // 3. Span을 종료합니다.
+            span.end();
+        }
     }
 
     /**
@@ -45,15 +71,18 @@ public class KafkaProducerService {
      * @param payloadJson 전송할 메시지
      * @return 전송 결과를 나타내는 CompletableFuture
      */
-    public CompletableFuture<SendResult<String, String>> send(String topic, String key, String payloadJson) {
-        Message<String> message = MessageBuilder
-                .withPayload(payloadJson)
-                .setHeader(KafkaHeaders.TOPIC, topic)
-                .setHeader(KafkaHeaders.KEY, key)
-                .build();
+    public CompletableFuture<SendResult<String, String>> send(String topic, String key, String payloadJson, Context context) {
+        Span span = tracer.spanBuilder("kafka-send").setParent(context).startSpan();
 
-        return kafkaTemplate.send(message);
+        try (Scope scope = span.makeCurrent()) {
+            ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, payloadJson);
+            GlobalOpenTelemetry.getPropagators().getTextMapPropagator().inject(context, record, setter);
+            return kafkaTemplate.send(record);
+        } finally {
+            span.end();
+        }
     }
+
 
     /**
      * 재시도 로직을 포함하여 Kafka로 메시지를 전송합니다. 성공 시 메시지 전송 성공 로그를 출력합니다.
@@ -65,8 +94,8 @@ public class KafkaProducerService {
      * @param payloadJson 전송할 메시지
      */
     @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
-    public void sendWithRetry(String topic, String payloadJson) {
-        send(topic, payloadJson).whenComplete((result, ex) -> {
+    public void sendWithRetry(String topic, String payloadJson, Context context) {
+        send(topic, payloadJson, context).whenComplete((result, ex) -> {
             // 실패시 예외를 던져서 처리합니다.
             if (ex != null) {
                 throw new RuntimeException("Failed to send message to Kafka", ex);
@@ -86,8 +115,8 @@ public class KafkaProducerService {
      * @param payloadJson 전송할 메시지
      */
     @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
-    public void sendWithRetry(String topic, String key, String payloadJson) {
-        send(topic, key, payloadJson).whenComplete((result, ex) -> {
+    public void sendWithRetry(String topic, String key, String payloadJson, Context context) {
+        send(topic, payloadJson, context).whenComplete((result, ex) -> {
             // 실패시 예외를 던져서 처리합니다.
             if (ex != null) {
                 throw new RuntimeException("Failed to send message to Kafka", ex);
