@@ -44,19 +44,25 @@ public class KafkaProducerService {
      *
      * @param topic       전송할 Kafka 토픽
      * @param payloadJson 전송할 메시지
+     * @param context     전송에 사용될 컨텍스트
      * @return 전송 결과를 나타내는 CompletableFuture
      */
     public CompletableFuture<SendResult<String, String>> send(String topic, String payloadJson, Context context) {
-        // 1. Span을 생성합니다.
+        // 1. Span을 생성합니다. ("kafka-send"라는 이름을 가지며, 파라미터로 주어진 context를 부모로 설정합니다.)
         Span span = tracer.spanBuilder("kafka-send").setParent(context).startSpan();
 
         // 2. Span을 현재 컨텍스트에 설정합니다.
         try (Scope scope = span.makeCurrent()) {
+
+            // 2-1. Kafka 메시지 레코드를 생성합니다.
             ProducerRecord<String, String> record = new ProducerRecord<>(topic, payloadJson);
 
-            // todo: KafkaProducerService에서 메시지 전송 시 traceparent 헤더가 제대로 주입되었는지 확인합니다.
+            // 2-2. Traceparent 헤더를 Kafka 레코드에 주입하여 트레이스를 연결합니다. (리스너에서 가져다 사용)
             GlobalOpenTelemetry.getPropagators().getTextMapPropagator().inject(context, record, setter);
+
+            // 2-3. Kafka 메시지를 전송합니다.
             return kafkaTemplate.send(record);
+
         } finally {
             // 3. Span을 종료합니다.
             span.end();
@@ -69,6 +75,7 @@ public class KafkaProducerService {
      * @param topic       전송할 Kafka 토픽
      * @param key         메시지 키
      * @param payloadJson 전송할 메시지
+     * @param context     전송에 사용될 컨텍스트
      * @return 전송 결과를 나타내는 CompletableFuture
      */
     public CompletableFuture<SendResult<String, String>> send(String topic, String key, String payloadJson, Context context) {

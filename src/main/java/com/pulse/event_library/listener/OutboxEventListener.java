@@ -54,28 +54,35 @@ public class OutboxEventListener {
     }
 
     /**
-     * 트랜잭션이 성공적으로 커밋되면 Kafka로 이벤트를 발행한다.
+     * 트랜잭션이 성공적으로 커밋되면 Kafka로 이벤트를 발행합니다.
      *
-     * @param event
+     * @param event 전송할 Outbox 이벤트
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void sendToKafka(OutboxEvent event) {
-        // 현재 컨텍스트를 가져와 Span을 생성
+        // 1. 현재 컨텍스트를 가져와 Span을 생성
         Span span = tracer.spanBuilder("send-to-kafka").startSpan();
 
-        // Span을 현재 컨텍스트에 설정
+        // 2. Span을 현재 컨텍스트에 설정
         try (Scope scope = span.makeCurrent()) {
             Context context = Context.current().with(span);
             try {
-                Long eventId = event.getId();
+                // 2-1. 메시지로 보낼 payload와 전송할 Kafka의 토픽 정보를 가져옵니다.
+                Long message = event.getId();
                 String topic = outboxService.getKafkaTopic(event);
-                kafkaProducerService.sendWithRetry(topic, String.valueOf(eventId), context);
+
+                // 2-2. 추출한 토픽에 Kafka 메시지를 전송합니다.
+                kafkaProducerService.sendWithRetry(topic, String.valueOf(message), context);
+
+                // 2-3. 메시지 전송 후 Outbox 이벤트에 메시지를 처리된 상태로 변경합니다.
                 outboxService.markOutboxEventProcessed(event);
             } catch (Exception e) {
+                // exception: 예외 발생 시 Outbox 이벤트를 실패 상태로 변경하고 Span에 예외를 기록합니다.
                 outboxService.markOutboxEventFailed(event);
                 span.recordException(e);
             }
         } finally {
+            // Span을 종료합니다.
             span.end();
         }
     }
