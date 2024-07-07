@@ -36,7 +36,7 @@ public class OutboxEventListener {
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void handleOutboxEvent(OutboxEvent event) {
         // 1. Span을 생성하고 현재 컨텍스트에 설정
-        Span span = tracer.spanBuilder("save-outbox-event").startSpan();
+        Span span = tracer.spanBuilder("[spring-event] before-commit (outbox-table save)").startSpan();
 
         // 2. Span을 현재 컨텍스트에 설정
         try (Scope scope = span.makeCurrent()) {
@@ -61,7 +61,7 @@ public class OutboxEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void sendToKafka(OutboxEvent event) {
         // 1. 현재 컨텍스트를 가져와 Span을 생성
-        Span span = tracer.spanBuilder("send-to-kafka").startSpan();
+        Span span = tracer.spanBuilder("[spring-event] after-commit (kafka-produce && outbox table process)").startSpan();
 
         // 2. Span을 현재 컨텍스트에 설정
         try (Scope scope = span.makeCurrent()) {

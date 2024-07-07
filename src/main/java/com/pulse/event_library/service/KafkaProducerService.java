@@ -49,7 +49,7 @@ public class KafkaProducerService {
      */
     public CompletableFuture<SendResult<String, String>> send(String topic, String payloadJson, Context context) {
         // 1. Span을 생성합니다. ("kafka-send"라는 이름을 가지며, 파라미터로 주어진 context를 부모로 설정합니다.)
-        Span span = tracer.spanBuilder("kafka-send").setParent(context).startSpan();
+        Span span = tracer.spanBuilder("[kafka] : message-produce").setParent(context).startSpan();
 
         // 2. Span을 현재 컨텍스트에 설정합니다.
         try (Scope scope = span.makeCurrent()) {
@@ -79,7 +79,7 @@ public class KafkaProducerService {
      * @return 전송 결과를 나타내는 CompletableFuture
      */
     public CompletableFuture<SendResult<String, String>> send(String topic, String key, String payloadJson, Context context) {
-        Span span = tracer.spanBuilder("kafka-send").setParent(context).startSpan();
+        Span span = tracer.spanBuilder("[kafka] : message-produce").setParent(context).startSpan();
 
         try (Scope scope = span.makeCurrent()) {
             ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, payloadJson);
